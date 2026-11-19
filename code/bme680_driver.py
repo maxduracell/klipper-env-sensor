@@ -3,7 +3,7 @@
 # Functional BME680 driver for klipper-env-sensor
 # Implements the official Bosch compensation formulas.
 #
-# Based on the Bosch BME68x Sensor API (open-source)
+# Based on the Bosch BME68x Sensor API:
 # https://github.com/BoschSensortec/BME68x-Sensor-API
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -43,7 +43,7 @@ class BME680Sensor(BaseSensor):
         self.i2c_addr = i2c_address if i2c_address is not None else 0x76
 
         self.i2c = None
-        self.cal = {}                 # Calibration coefficients
+        self.cal = {}
         self.t_fine = 0.0
         self._is_initialized = False
 
@@ -51,7 +51,6 @@ class BME680Sensor(BaseSensor):
 
     def initialize(self) -> None:
         try:
-            # Get I2C interface from Klipper
             i2c_obj = self.printer.lookup_object(f"i2c_{self.i2c_mcu_name}")
             self.i2c = i2c_obj.get_i2c(self.i2c_bus, self.i2c_addr)
 
@@ -59,17 +58,14 @@ class BME680Sensor(BaseSensor):
             self._write_byte(self.REG_RESET, 0xB6)
             self._pause(0.01)
 
-            # Check chip ID
+            # Verify chip ID
             chip_id = self._read_byte(self.REG_CHIP_ID)
             if chip_id != self.CHIP_ID:
                 raise Exception(f"Invalid chip ID 0x{chip_id:02X}, expected 0x61")
 
             logging.info(f"BME680 detected (Chip ID: 0x{chip_id:02X})")
 
-            # Load factory calibration data
             self._load_calibration()
-
-            # Configure sensor
             self._configure()
 
             self._is_initialized = True
@@ -93,10 +89,8 @@ class BME680Sensor(BaseSensor):
         reactor.pause(reactor.monotonic() + seconds)
 
     def _load_calibration(self):
-        """Read and store the factory calibration coefficients."""
-        # Temperature calibration
+        """Load factory calibration coefficients from the sensor."""
         coeff = self._read_bytes(0x89, 25)
-        # Humidity + more coefficients
         coeff2 = self._read_bytes(0xE1, 16)
 
         self.cal = {
@@ -132,7 +126,7 @@ class BME680Sensor(BaseSensor):
             "par_g3": self._to_int8(coeff2[13]),
             "res_heat_range": (self._read_byte(0x02) >> 4) & 0x03,
             "res_heat_val": self._to_int8(self._read_byte(0x00)),
-            "range_sw_err": self._to_int8(self._read_byte(0x04) >> 4),
+            "range_sw_err": self._to_int8((self._read_byte(0x04) & 0xF0) >> 4),
         }
 
         logging.info("BME680 calibration data loaded")
@@ -148,16 +142,16 @@ class BME680Sensor(BaseSensor):
         # Humidity oversampling x2
         self._write_byte(self.REG_CTRL_HUM, 0x02)
 
-        # Temperature x8, Pressure x4, Sleep mode for now
+        # Temperature x8 + Pressure x4 (sleep mode)
         self._write_byte(self.REG_CTRL_MEAS, 0x54)
 
-        # IIR filter coefficient 3
+        # IIR filter
         self._write_byte(self.REG_CONFIG, 0x0C)
 
-        # Gas heater settings (320°C for 150ms is a common profile)
-        self._write_byte(self.REG_GAS_WAIT_0, 0x59)      # 150ms
-        self._write_byte(self.REG_RES_HEAT_0, 0x73)      # ~320°C (approximate)
-        self._write_byte(self.REG_CTRL_GAS_1, 0x10)      # Enable gas measurement, heater profile 0
+        # Gas heater: ~320°C for 150ms
+        self._write_byte(self.REG_GAS_WAIT_0, 0x59)
+        self._write_byte(self.REG_RES_HEAT_0, 0x73)
+        self._write_byte(self.REG_CTRL_GAS_1, 0x10)
 
         logging.info("BME680 configured")
 
@@ -166,23 +160,18 @@ class BME680Sensor(BaseSensor):
             return None
 
         try:
-            # Trigger forced mode measurement
-            self._write_byte(self.REG_CTRL_MEAS, 0x55)  # Forced mode
-
-            # Wait for measurement to complete (~150-200ms with gas)
+            # Trigger forced mode
+            self._write_byte(self.REG_CTRL_MEAS, 0x55)
             self._pause(0.25)
 
-            # Read raw data (temperature, pressure, humidity, gas)
             data = self._read_bytes(0x1F, 15)
 
-            # Extract raw ADC values
             press_adc = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4)
             temp_adc  = (data[3] << 12) | (data[4] << 4) | (data[5] >> 4)
             hum_adc   = (data[6] << 8) | data[7]
             gas_adc   = (data[13] << 2) | (data[14] >> 6)
             gas_range = data[14] & 0x0F
 
-            # Apply official Bosch compensation
             temperature = self._compensate_temperature(temp_adc)
             pressure    = self._compensate_pressure(press_adc)
             humidity    = self._compensate_humidity(hum_adc)
@@ -200,12 +189,13 @@ class BME680Sensor(BaseSensor):
             return None
 
     # =====================================================================
-    # Official Bosch compensation formulas (simplified float version)
+    # Official Bosch compensation formulas
     # =====================================================================
 
     def _compensate_temperature(self, temp_adc: int) -> float:
         var1 = ((temp_adc / 16384.0) - (self.cal["par_t1"] / 1024.0)) * self.cal["par_t2"]
-        var2 = ((((temp_adc / 131072.0) - (self.cal["par_t1"] / 8192.0)) ** 2) * self.cal["par_t3"] * 16.0)
+        var2 = ((((temp_adc / 131072.0) - (self.cal["par_t1"] / 8192.0)) ** 2) *
+                (self.cal["par_t3"] * 16.0))
         self.t_fine = var1 + var2
         return self.t_fine / 5120.0
 
@@ -214,33 +204,33 @@ class BME680Sensor(BaseSensor):
         var2 = var1 * var1 * self.cal["par_p6"] / 32768.0
         var2 = var2 + var1 * self.cal["par_p5"] * 2.0
         var2 = (var2 / 4.0) + (self.cal["par_p4"] * 65536.0)
-        var1 = ((self.cal["par_p3"] * var1 * var1 / 524288.0) + (self.cal["par_p2"] * var1)) / 524288.0
+        var1 = (self.cal["par_p3"] * var1 * var1 / 524288.0 +
+                self.cal["par_p2"] * var1) / 524288.0
         var1 = (1.0 + var1 / 32768.0) * self.cal["par_p1"]
         if var1 == 0:
-            return 0
+            return 0.0
         pressure = 1048576.0 - press_adc
         pressure = ((pressure - (var2 / 4096.0)) * 6250.0) / var1
         var1 = self.cal["par_p9"] * pressure * pressure / 2147483648.0
         var2 = pressure * self.cal["par_p8"] / 32768.0
         pressure = pressure + (var1 + var2 + self.cal["par_p7"]) / 16.0
-        return pressure / 100.0  # hPa
+        return pressure / 100.0
 
     def _compensate_humidity(self, hum_adc: int) -> float:
         temp = self.t_fine / 5120.0
-        var1 = hum_adc - (self.cal["par_h1"] * 16.0 + (self.cal["par_h3"] / 2.0 * temp))
-        var2 = var1 * (self.cal["par_h2"] / 262144.0 * (1.0 + self.cal["par_h4"] / 16384.0 * temp
-                       + self.cal["par_h5"] / 1048576.0 * temp * temp))
+        var1 = hum_adc - ((self.cal["par_h1"] * 16.0) +
+                          ((self.cal["par_h3"] / 2.0) * temp))
+        var2 = var1 * ((self.cal["par_h2"] / 262144.0) *
+                       (1.0 + (self.cal["par_h4"] / 16384.0) * temp +
+                        (self.cal["par_h5"] / 1048576.0) * temp * temp))
         var3 = self.cal["par_h6"] / 16384.0
         var4 = self.cal["par_h7"] / 2097152.0
-        humidity = var2 + (var3 + var4 * temp) * var2 * var2
+        humidity = var2 + ((var3 + (var4 * temp)) * var2 * var2)
         return max(0.0, min(100.0, humidity))
 
     def _compensate_gas(self, gas_adc: int, gas_range: int) -> float:
-        # Lookup table for gas range
         lookup = [1, 1, 1, 1, 1, 0.99, 1, 0.992,
                   1, 1, 0.998, 0.995, 1, 0.99, 1, 1]
-
-        var1 = 1340.0 + 5.0 * self.cal["range_sw_err"]
+        var1 = 1340.0 + (5.0 * self.cal["range_sw_err"])
         var2 = var1 * lookup[gas_range]
-        gas_res = var2 * gas_adc
-        return gas_res
+        return var2 * gas_adc
