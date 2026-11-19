@@ -239,7 +239,7 @@ class BME680Sensor(BaseSensor):
 
     def _compensate_gas(self, gas_adc: int, gas_range: int) -> float:
         lookup = [1, 1, 1, 1, 1, 0.99, 1, 0.992,
-                  1, 1, 0.998, 0995, 1, 0.99, 1, 1]
+                  1, 1, 0.998, 0.995, 1, 0.99, 1, 1]
 
         var1 = 1340.0 + (5.0 * self.cal["range_sw_err"])
         var2 = var1 * lookup[gas_range]
