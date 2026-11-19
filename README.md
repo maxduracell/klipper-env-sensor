@@ -21,7 +21,7 @@ This module provides clean temperature, humidity, pressure, and air quality (IAQ
 
 ---
 
-## Supported Sensors
+# Supported Sensors
 
 | Sensor   | Temperature | Humidity | Pressure | Gas / VOC | Notes                  |
 |----------|-------------|----------|----------|-----------|------------------------|
@@ -51,7 +51,7 @@ sudo systemctl restart klipper
 ```
 4. Add the [env_sensor ...] section to your printer.cfg (see config_example.cfg for examples).
    
-Configuration
+## Configuration
 Add a section like this to your printer.cfg:
 
 ```
@@ -72,7 +72,7 @@ BME680 on RP2040/Pico (recommended for flexible sensor placement)
 BME280 + SGP40 combination
 
   
-Available Values in Macros
+## Available Values in Macros
 You can access the following values in macros:
 
 ```
@@ -104,7 +104,7 @@ gcode:
     RESPOND TYPE=command MSG="Chamber IAQ: {iaq:.1f} | Temp: {temp:.1f}°C | Humidity: {hum:.1f}%"
 ```
 
-Moonraker Update Manager
+## Moonraker Update Manager
 Add this to your moonraker.conf to enable easy updates from Mainsail:
 
 ```
@@ -116,7 +116,7 @@ primary_branch: main
 managed_services: klipper
 ```
 
-Development Notes & Transparency:  
+# Development Notes & Transparency:  
 This module was developed collaboratively.
 
 Primary author / project lead: maxduracell  
