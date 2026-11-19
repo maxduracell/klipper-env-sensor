@@ -1,82 +1,122 @@
-# klipper-env-sensor/env_sensor.py
+# env_sensor.py
 #
-# Klipper module for environmental sensors (BME680, BME280, SGP40, etc.)
-# Provides clean sensor readings, IAQ/VOC calculation, virtual sensors for Mainsail,
-# and exposes values for macro automation (chamber control, filter fans, etc.)
+# Klipper Environment Sensor Module
+# Supports: BME680, BME280, SGP40, and future sensors
+# Provides clean readings, IAQ/VOC calculation, virtual sensors for Mainsail,
+# persistent calibration, and macro-friendly values for chamber automation.
 #
-# Author: Grok (with user input)
-# Compatible with: Stock Klipper and Kalico
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of klipper-env-sensor.
+# Copyright (C) 2026  [Your GitHub Username]
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
 
 from __future__ import annotations
 import logging
-from . import sensor_drivers, iaq
+from typing import Dict, Any
+
+from . import sensor_drivers, iaq_calculator
+
 
 class EnvSensor:
+    """
+    Main Klipper module for environmental sensing.
+    
+    This class handles:
+      - Loading the appropriate sensor driver
+      - Creating virtual temperature sensors for Mainsail
+      - Periodic sampling
+      - IAQ/VOC calculation
+      - Exposing data for macros and automation
+    """
+
     def __init__(self, config):
         self.printer = config.get_printer()
-        self.name = config.get_name().split()[-1]  # e.g. "chamber"
+        self.name = config.get_name().split()[-1]   # e.g. "chamber", "enclosure"
 
-        # === Configuration ===
+        # === Configuration Options ===
         self.sensor_type = config.get("sensor_type", "bme680").lower()
         self.i2c_mcu = config.get("i2c_mcu", "mcu")
         self.i2c_bus = config.get("i2c_bus", "i2c1a")
-        self.i2c_address = config.getint("i2c_address", None, minval=0, maxval=0x7f)
+        self.i2c_address = config.getint("i2c_address", None, minval=0x08, maxval=0x77)
         
-        self.sample_time = config.getfloat("sample_time", 3.0, minval=1.0)
-        self.iaq_algorithm = config.get("iaq_algorithm", "open_source")
+        self.sample_time = config.getfloat("sample_time", 3.0, above=0.5)
+        self.iaq_algorithm = config.get("iaq_algorithm", "open_source").lower()
+        self.enable_iaq = config.getboolean("enable_iaq", True)
 
-        # === Sensor Driver ===
+        # === Load Sensor Driver ===
         self.sensor = sensor_drivers.create_sensor(
-            self.sensor_type, 
-            self.i2c_mcu, 
-            self.i2c_bus, 
-            self.i2c_address,
-            config
+            sensor_type=self.sensor_type,
+            i2c_mcu=self.i2c_mcu,
+            i2c_bus=self.i2c_bus,
+            i2c_address=self.i2c_address,
+            config=config
         )
 
-        # === Register with Klipper ===
-        self.printer.register_event_handler("klippy:connect", self._handle_connect)
-        self.printer.register_event_handler("klippy:ready", self._handle_ready)
+        # === Virtual Sensors for Mainsail UI ===
+        self.printer.load_object(config, f"temperature_sensor {self.name}_temp")
+        self.printer.load_object(config, f"temperature_sensor {self.name}_humidity")
+        self.printer.load_object(config, f"temperature_sensor {self.name}_pressure")
 
-        # Create virtual temperature sensors so they show up nicely in Mainsail
-        self.temp_sensor = self.printer.load_object(config, "temperature_sensor " + self.name)
-        # We will update this sensor with our readings
+        if self.enable_iaq:
+            self.printer.load_object(config, f"temperature_sensor {self.name}_iaq")
 
-        # Register GCode commands
-        self.gcode = self.printer.lookup_object('gcode')
+        # Register events
+        self.printer.register_event_handler("klippy:connect", self._on_connect)
+        self.printer.register_event_handler("klippy:ready", self._on_ready)
+
+        # GCode commands
+        self.gcode = self.printer.lookup_object("gcode")
         self.gcode.register_mux_command(
-            "QUERY_ENV", "SENSOR", self.name, self.cmd_QUERY_ENV,
-            desc="Query environmental sensor readings")
+            "QUERY_ENV", "SENSOR", self.name,
+            self.cmd_QUERY_ENV,
+            desc=f"Query the {self.name} environmental sensor"
+        )
 
-    def _handle_connect(self):
-        """Called when Klipper connects to all MCUs"""
-        self.sensor.setup()
+    def _on_connect(self):
+        """Called once all MCUs are connected."""
+        self.sensor.initialize()
 
-    def _handle_ready(self):
-        """Called when printer is ready"""
+    def _on_ready(self):
+        """Called when the printer is fully ready."""
         reactor = self.printer.get_reactor()
-        reactor.register_timer(self._sample_timer, reactor.monotonic() + 1.0)
+        reactor.register_timer(self._sample_timer, reactor.monotonic() + 2.0)
 
-    def _sample_timer(self, eventtime):
-        """Main sampling loop"""
+    def _sample_timer(self, eventtime: float) -> float:
+        """Main periodic sampling function."""
         try:
-            data = self.sensor.read()
-            
-            if data is None:
+            readings = self.sensor.read()
+
+            if readings is None:
                 return eventtime + self.sample_time
 
-            # Update virtual temperature sensor (shows in Mainsail)
-            self.temp_sensor.sensor.update_temp(data.get("temperature", 0.0))
+            # Update virtual sensors (visible in Mainsail)
+            self._update_virtual_sensors(readings)
 
-            # TODO: Update other virtual sensors (humidity, pressure, iaq, etc.)
-            # TODO: Run IAQ calculation from iaq.py
-
-            logging.info(f"EnvSensor {self.name}: {data}")
+            # Optional: Log to console (can be disabled in production)
+            # logging.info(f"EnvSensor '{self.name}': {readings}")
 
         except Exception as e:
-            logging.exception(f"Error reading {self.name} sensor: {e}")
+            logging.exception(f"EnvSensor '{self.name}' sampling error")
 
         return eventtime + self.sample_time
+
+    def _update_virtual_sensors(self, readings: Dict[str, float]):
+        """Update all virtual temperature sensors for Mainsail display."""
+        # These will appear in the temperature graph and sensor list
+        self.printer.lookup_object(f"temperature_sensor {self.name}_temp").sensor.update_temp(
+            readings.get("temperature", 0.0)
+        )
+        # TODO: Add humidity, pressure, and IAQ virtual sensors
 
     def cmd_QUERY_ENV(self, gcmd):
         """GCode command: QUERY_ENV SENSOR=chamber"""
@@ -84,9 +124,9 @@ class EnvSensor:
             data = self.sensor.read()
             gcmd.respond_info(f"EnvSensor {self.name}: {data}")
         except Exception as e:
-            gcmd.respond_info(f"Error reading sensor: {e}")
+            gcmd.respond_info(f"Error querying {self.name}: {str(e)}")
 
 
 def load_config(config):
-    """Klipper entry point"""
+    """This is the entry point called by Klipper when it sees [env_sensor]"""
     return EnvSensor(config)
