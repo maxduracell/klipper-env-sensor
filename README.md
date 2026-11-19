@@ -25,9 +25,9 @@ This module provides clean temperature, humidity, pressure, and air quality (IAQ
 
 | Sensor   | Temperature | Humidity | Pressure | Gas / VOC | Notes                  |
 |----------|-------------|----------|----------|-----------|------------------------|
-| BME680   | ✓           | ✓        | ✓        | ✓         | Primary target sensor  |
-| BME280   | ✓           | ✓        | ✓        | ✗         | Excellent basic sensor |
-| SGP40    | ✗           | ✗        | ✗        | ✓         | Dedicated VOC sensor   |
+| BME680   | ✓           | ✓        | ✓        | ✓        | Primary target sensor  |
+| BME280   | ✓           | ✓        | ✓        | ✗        | Excellent basic sensor |
+| SGP40    | ✗           | ✗        | ✗        | ✓        | Dedicated VOC sensor   |
 
 ---
 
