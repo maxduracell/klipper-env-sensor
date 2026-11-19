@@ -103,7 +103,7 @@ primary_branch: main
 managed_services: klipper
 ```
 
-Development Notes & Transparency
+Development Notes & Transparency:
 This module was developed collaboratively.
 
 Primary author / project lead: maxduracell
