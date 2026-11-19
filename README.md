@@ -43,7 +43,7 @@ git clone https://github.com/maxduracell/klipper-env-sensor.git
 2. Create a symbolic link into your Klipper extras directory:
 
 ```bash
-ln -s ~/klipper-env-sensor/env_sensor.py ~/klipper/klippy/extras/env_sensor.py
+ln -s ~/klipper-env-sensor ~/klipper/klippy/extras/env_sensor
 ```
 3. Restart Klipper:
 
