@@ -64,7 +64,7 @@ sample_time: 3.0
 iaq_algorithm: open_source
 baseline_mode: adaptive
 ```
-Configuration Examples
+Configuration Examples  
 See config_example.cfg for recommended configurations, including:
 
 BME680 on Octopus I2C
