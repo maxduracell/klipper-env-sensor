@@ -45,7 +45,7 @@ git clone https://github.com/maxduracell/klipper-env-sensor.git
 ```bash
 ln -s ~/klipper-env-sensor/env_sensor.py ~/klipper/klippy/extras/env_sensor.py
 ```
-3.Restart Klipper:
+3. Restart Klipper:
 
 ```bas
 hsudo systemctl restart klipper
