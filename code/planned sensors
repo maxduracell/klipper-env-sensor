@@ -1,0 +1,8 @@
+Recommended Additional Common Sensors
+Here are other sensors worth considering for future expansion:
+
+SHT3x / SHT4x (Sensirion) — Very high accuracy temperature + humidity
+SCD30 / SCD41 (Sensirion) — Excellent CO₂ sensor (very useful for chamber air quality)
+BME688 — Newer version of BME680 with better AI-based gas detection
+CCS811 — Older but still common VOC sensor (less accurate than SGP40)
+AHT20 or AHT25 — Low-cost, decent temp/humidity sensor
