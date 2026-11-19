@@ -37,3 +37,27 @@ This module provides clean temperature, humidity, pressure, and air quality (IAQ
 ```bash
 cd ~
 git clone https://github.com/maxduracell/klipper-env-sensor.git
+```
+2. Create a symbolic link into your Klipper extras directory:
+
+```bash
+ln -s ~/klipper-env-sensor/env_sensor.py ~/klipper/klippy/extras/env_sensor.py
+```
+3.Restart Klipper:
+
+```bas
+hsudo systemctl restart klipper
+```
+Configuration
+Add a section like this to your printer.cfg:
+
+[env_sensor chamber]
+sensor_type: bme680
+i2c_mcu: mcu
+i2c_bus: i2c1a
+i2c_address: 118
+sample_time: 3.0
+iaq_algorithm: open_source
+baseline_mode: adaptive
+
+See config_example.cfg for more examples (including RP2040 and BME280 + SGP40 combinations).
