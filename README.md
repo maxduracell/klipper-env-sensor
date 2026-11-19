@@ -88,7 +88,7 @@ You can access the following values in macros:
 Example macro:
 
 ```
-[gcode_macro REPORT_AIR_QUALITY]
+[gcode_macro CHAMBER_STATUS]
 gcode:
     {% set iaq = printer["env_sensor chamber"].iaq|float %}
     {% set temp = printer["env_sensor chamber"].temperature|float %}
