@@ -1,13 +1,13 @@
 # env_sensor.py
 #
 # Klipper Environment Sensor Module
-# Supports BME680, BME280, SGP40, and future environmental sensors.
+# Supports BME680, BME280, SGP40, and future sensors.
 #
 # Features:
 #   - Virtual sensors visible in Mainsail/Fluidd
 #   - IAQ / VOC calculation with drift compensation
-#   - Values easily accessible from macros
-#   - Support for multiple MCUs (including RP2040)
+#   - Clean macro interface for chamber automation
+#   - Support for multiple MCUs (Octopus I2C, RP2040, etc.)
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
@@ -21,14 +21,14 @@
 
 from __future__ import annotations
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from . import sensor_drivers, iaq_calculator
 
 
 class EnvSensor:
     """
-    Main Klipper extras module for environmental sensors.
+    Main Klipper module for environmental sensors.
     
     Values available in macros:
         printer["env_sensor chamber"].temperature
@@ -55,7 +55,7 @@ class EnvSensor:
         self.iaq_algorithm = config.get("iaq_algorithm", "open_source").lower()
         self.baseline_mode = config.get("baseline_mode", "adaptive")
 
-        # Load the appropriate hardware driver
+        # Load hardware driver
         self.sensor = sensor_drivers.create_sensor(
             sensor_type=self.sensor_type,
             i2c_mcu=self.i2c_mcu,
@@ -64,20 +64,18 @@ class EnvSensor:
             config=config
         )
 
-        # Load the IAQ calculator if enabled
+        # Load IAQ calculator if enabled
         self.iaq = iaq_calculator.IAQCalculator(config) if self.enable_iaq else None
 
-        # Store the latest readings so they can be accessed by macros
+        # Store latest readings for macro access
         self.last_readings = {}
 
-        # Register virtual sensors for Mainsail UI
+        # Register virtual sensors for Mainsail/Fluidd
         self._register_virtual_sensors(config)
 
-        # Register Klipper events
         self.printer.register_event_handler("klippy:connect", self._on_connect)
         self.printer.register_event_handler("klippy:ready", self._on_ready)
 
-        # Register GCode commands
         self.gcode = self.printer.lookup_object('gcode')
         self.gcode.register_mux_command(
             "QUERY_ENV", "SENSOR", self.name,
@@ -88,7 +86,7 @@ class EnvSensor:
         logging.info(f"EnvSensor '{self.name}' initialized (type: {self.sensor_type})")
 
     def _register_virtual_sensors(self, config):
-        """Create virtual temperature sensors so values appear in Mainsail."""
+        """Create virtual sensors so they appear in Mainsail."""
         self.printer.load_object(config, f"temperature_sensor {self.name}_temp")
         self.printer.load_object(config, f"temperature_sensor {self.name}_humidity")
         self.printer.load_object(config, f"temperature_sensor {self.name}_pressure")
@@ -97,27 +95,24 @@ class EnvSensor:
             self.printer.load_object(config, f"temperature_sensor {self.name}_iaq")
 
     def _on_connect(self):
-        """Called when all MCUs are connected."""
         self.sensor.initialize()
 
     def _on_ready(self):
-        """Called when the printer is fully ready. Starts the sampling loop."""
         reactor = self.printer.get_reactor()
         reactor.register_timer(self._sample_timer, reactor.monotonic() + 2.0)
 
     def _sample_timer(self, eventtime: float) -> float:
         """Main sampling loop."""
         try:
-            readings = self.sensor.read()
-
-            if readings is None:
+            raw_readings = self.sensor.read()
+            if raw_readings is None:
                 return eventtime + self.sample_time
 
-            # Run IAQ calculation if enabled
+            # Enrich readings with IAQ calculation if enabled
             if self.iaq is not None:
-                enriched = self.iaq.update(readings)
+                enriched = self.iaq.update(raw_readings)
             else:
-                enriched = readings
+                enriched = raw_readings.copy()
 
             self.last_readings = enriched
             self._update_virtual_sensors(enriched)
@@ -128,7 +123,7 @@ class EnvSensor:
         return eventtime + self.sample_time
 
     def _update_virtual_sensors(self, readings: Dict[str, float]):
-        """Update the virtual sensors so they appear in Mainsail."""
+        """Update virtual sensors for Mainsail display."""
         try:
             self.printer.lookup_object(f"temperature_sensor {self.name}_temp").sensor.update_temp(
                 readings.get("temperature", 0.0)
@@ -156,14 +151,12 @@ class EnvSensor:
 
             status = self.iaq.get_status() if self.iaq else {}
             combined = {**self.last_readings, **status}
-
             gcmd.respond_info(f"EnvSensor {self.name}: {combined}")
         except Exception as e:
             gcmd.respond_info(f"Error querying {self.name}: {str(e)}")
 
     # ==========================================================
-    # Macro-accessible attributes
-    # These allow you to use: {printer["env_sensor chamber"].iaq}
+    # Properties for easy macro access
     # ==========================================================
     @property
     def temperature(self):
@@ -195,7 +188,3 @@ class EnvSensor:
             return self.iaq.get_status().get("baseline_gas")
         return None
 
-
-def load_config(config):
-    """Entry point called by Klipper when it sees [env_sensor]"""
-    return EnvSensor(config)
