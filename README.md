@@ -103,10 +103,10 @@ primary_branch: main
 managed_services: klipper
 ```
 
-Development Notes & Transparency:
+Development Notes & Transparency:  
 This module was developed collaboratively.
 
-Primary author / project lead: maxduracell
+Primary author / project lead: maxduracel  l
 Development assistance: Grok (xAI)
 
 The architecture, feature set, sensor support decisions, and overall design were directed by the human author. Grok was used as a coding and design assistant to accelerate development, generate well-structured code, and help with documentation. All code has been reviewed and refined with the goal of creating a clean, maintainable, and useful Klipper module.
