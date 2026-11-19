@@ -71,6 +71,7 @@ BME680 on Octopus I2C
 BME680 on RP2040/Pico (recommended for flexible sensor placement)
 BME280 + SGP40 combination
 
+  
 Available Values in Macros
 You can access the following values in macros:
 
