@@ -31,6 +31,7 @@ import logging
 import time
 from typing import Dict, Any
 
+
 class IAQCalculator:
     """
     Calculates Indoor Air Quality (IAQ) and VOC index from environmental sensors.
@@ -48,7 +49,7 @@ class IAQCalculator:
         
         # Baseline tracking (helps fight long-term sensor drift)
         self.baseline_gas = None
-        self.adaptation_rate = 0.00005          # Very slow adaptation rate
+        self.adaptation_rate = 0.00005          # Very slow adaptation to fight drift
 
         # Last known values (for macros and status queries)
         self.last_iaq = 50.0
