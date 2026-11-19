@@ -7,7 +7,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of klipper-env-sensor.
-# Copyright (C) 2026  [Your GitHub Username]
+# Copyright (C) 2026 maxduracell
 
 import logging
 from typing import Dict, Optional
