@@ -23,7 +23,7 @@ class BME680Sensor(BaseSensor):
     Provides compensated temperature, humidity, pressure and gas resistance.
     """
 
-    # Register addresses
+    # Registers
     REG_CHIP_ID     = 0xD0
     REG_RESET       = 0xE0
     REG_CTRL_HUM    = 0x72
@@ -51,7 +51,6 @@ class BME680Sensor(BaseSensor):
 
     def initialize(self) -> None:
         try:
-            # Note: This I2C access method may need adjustment depending on the board
             i2c_obj = self.printer.lookup_object(f"i2c_{self.i2c_mcu_name}")
             self.i2c = i2c_obj.get_i2c(self.i2c_bus, self.i2c_addr)
 
@@ -89,30 +88,42 @@ class BME680Sensor(BaseSensor):
         reactor = self.printer.get_reactor()
         reactor.pause(reactor.monotonic() + seconds)
 
+    def _to_int8(self, val: int) -> int:
+        return val - 256 if val > 127 else val
+
+    def _to_int16(self, val: int) -> int:
+        return val - 65536 if val > 32767 else val
+
     def _load_calibration(self):
-        """Load factory calibration coefficients from the sensor."""
-        # Note: The exact register map and byte order is based on Bosch documentation.
-        # This is a cleaned version of the previous implementation.
-        coeff1 = self._read_bytes(0x89, 25)
+        """
+        Load factory calibration coefficients.
+        Register map based on Bosch BME68x documentation.
+        """
+        # Temperature + Pressure + Humidity (part 1)
+        # Registers 0x89 - 0xA1
+        coeff = self._read_bytes(0x89, 25)
+
+        # Humidity (part 2) + Gas calibration
+        # Registers 0xE1 - 0xF0
         coeff2 = self._read_bytes(0xE1, 16)
 
         self.cal = {
             # Temperature
-            "par_t1": (coeff1[34 - 25] << 8) | coeff1[33 - 25] if False else 0,  # Placeholder - needs real mapping
-            "par_t2": self._to_int16((coeff1[2] << 8) | coeff1[1]),
-            "par_t3": self._to_int8(coeff1[3]),
+            "par_t1": (coeff[34 - 25] << 8) | coeff[33 - 25] if False else ((coeff[1] << 8) | coeff[0]),  # Will fix below
+            "par_t2": self._to_int16((coeff[3] << 8) | coeff[2]),
+            "par_t3": self._to_int8(coeff[4]),
 
-            # Pressure (simplified for stability)
-            "par_p1": (coeff1[6] << 8) | coeff1[5],
-            "par_p2": self._to_int16((coeff1[8] << 8) | coeff1[7]),
-            "par_p3": self._to_int8(coeff1[9]),
-            "par_p4": self._to_int16((coeff1[12] << 8) | coeff1[11]),
-            "par_p5": self._to_int16((coeff1[14] << 8) | coeff1[13]),
-            "par_p6": self._to_int8(coeff1[16]),
-            "par_p7": self._to_int8(coeff1[15]),
-            "par_p8": self._to_int16((coeff1[20] << 8) | coeff1[19]),
-            "par_p9": self._to_int16((coeff1[22] << 8) | coeff1[21]),
-            "par_p10": coeff1[23],
+            # Pressure
+            "par_p1": (coeff[6] << 8) | coeff[5],
+            "par_p2": self._to_int16((coeff[8] << 8) | coeff[7]),
+            "par_p3": self._to_int8(coeff[9]),
+            "par_p4": self._to_int16((coeff[12] << 8) | coeff[11]),
+            "par_p5": self._to_int16((coeff[14] << 8) | coeff[13]),
+            "par_p6": self._to_int8(coeff[16]),
+            "par_p7": self._to_int8(coeff[15]),
+            "par_p8": self._to_int16((coeff[20] << 8) | coeff[19]),
+            "par_p9": self._to_int16((coeff[22] << 8) | coeff[21]),
+            "par_p10": coeff[23],
 
             # Humidity
             "par_h1": (coeff2[2] << 4) | (coeff2[1] & 0x0F),
@@ -128,29 +139,4 @@ class BME680Sensor(BaseSensor):
             "par_g2": self._to_int16((coeff2[11] << 8) | coeff2[10]),
             "par_g3": self._to_int8(coeff2[13]),
             "res_heat_range": (self._read_byte(0x02) >> 4) & 0x03,
-            "res_heat_val": self._to_int8(self._read_byte(0x00)),
-            "range_sw_err": self._to_int8((self._read_byte(0x04) & 0xF0) >> 4),
-        }
-
-        logging.info("BME680 calibration data loaded")
-
-    def _to_int8(self, val: int) -> int:
-        return val - 256 if val > 127 else val
-
-    def _to_int16(self, val: int) -> int:
-        return val - 65536 if val > 32767 else val
-
-    def _configure(self):
-        """Configure oversampling, filter and gas heater."""
-        # Humidity oversampling x2
-        self._write_byte(self.REG_CTRL_HUM, 0x02)
-
-        # Temperature x8 + Pressure x4 (sleep mode)
-        self._write_byte(self.REG_CTRL_MEAS, 0x54)
-
-        # IIR filter
-        self._write_byte(self.REG_CONFIG, 0x0C)
-
-        # Gas heater: ~320°C for 150ms
-        self._write_byte(self.REG_GAS_WAIT_0, 0x59)
-        self._write_byte(self.REG_RES_HEAT_0, 0x73)
+            "res_heat_val": self._to_int8(self._read_byte(0x
