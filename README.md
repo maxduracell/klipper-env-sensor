@@ -51,6 +51,7 @@ hsudo systemctl restart klipper
 Configuration
 Add a section like this to your printer.cfg:
 
+```
 [env_sensor chamber]
 sensor_type: bme680
 i2c_mcu: mcu
@@ -59,5 +60,54 @@ i2c_address: 118
 sample_time: 3.0
 iaq_algorithm: open_source
 baseline_mode: adaptive
-
+```
 See config_example.cfg for more examples (including RP2040 and BME280 + SGP40 combinations).
+
+Available Values in Macros
+You can access the following values in macros:
+
+```
+{printer["env_sensor chamber"].temperature}
+{printer["env_sensor chamber"].humidity}
+{printer["env_sensor chamber"].pressure}
+{printer["env_sensor chamber"].iaq}
+{printer["env_sensor chamber"].gas_resistance}
+{printer["env_sensor chamber"].voc_index}
+{printer["env_sensor chamber"].baseline_gas}
+```
+
+Example macro:
+
+```
+[gcode_macro REPORT_AIR_QUALITY]
+gcode:
+    {% set iaq = printer["env_sensor chamber"].iaq|float %}
+    {% set temp = printer["env_sensor chamber"].temperature|float %}
+    {% set hum = printer["env_sensor chamber"].humidity|float %}
+    RESPOND TYPE=command MSG="Chamber IAQ: {iaq:.1f} | Temp: {temp:.1f}°C | Humidity: {hum:.1f}%"
+```
+
+Moonraker Update Manager
+Add this to your moonraker.conf to enable easy updates from Mainsail:
+
+```
+[update_manager klipper-env-sensor]
+type: git_repo
+path: ~/klipper-env-sensor
+origin: https://github.com/maxduracell/klipper-env-sensor.git
+primary_branch: main
+managed_services: klipper
+```
+
+Development Notes & Transparency
+This module was developed collaboratively.
+
+Primary author / project lead: maxduracell
+Development assistance: Grok (xAI)
+
+The architecture, feature set, sensor support decisions, and overall design were directed by the human author. Grok was used as a coding and design assistant to accelerate development, generate well-structured code, and help with documentation. All code has been reviewed and refined with the goal of creating a clean, maintainable, and useful Klipper module.
+This transparency note is included because some members of the community prefer to know when AI tools were involved in a project’s creation.
+
+License
+This project is licensed under the GNU General Public License v3.0 or later.
+See the LICENSE file for full details
