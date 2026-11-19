@@ -11,8 +11,7 @@
 #   - Various open-source BME680 IAQ implementations on GitHub
 #   - Community reverse-engineering efforts of Bosch's approach
 #       https://github.com/pimoroni/bme680-python
-#       https://github.com/BoschSensortec/BME68x-Sensor-API (the official open-source low-level driver)
-#       Various community implementations on GitHub (e.g. "bme680-iaq" repos
+#       https://github.com/BoschSensortec/BME68x-Sensor-API
 #
 # The core idea is to track a slow-moving baseline of gas resistance
 # and calculate IAQ based on deviation from that baseline, with basic
@@ -32,7 +31,6 @@ import logging
 import time
 from typing import Dict, Any
 
-
 class IAQCalculator:
     """
     Calculates Indoor Air Quality (IAQ) and VOC index from environmental sensors.
@@ -48,19 +46,23 @@ class IAQCalculator:
 
         self.baseline_mode = config.get("baseline_mode", "adaptive")
         
-        # Baseline tracking
+        # Baseline tracking (helps fight long-term sensor drift)
         self.baseline_gas = None
-        self.adaptation_rate = 0.00005          # Very slow adaptation to fight drift
+        self.adaptation_rate = 0.00005          # Very slow adaptation rate
 
-        # Last known values
+        # Last known values (for macros and status queries)
         self.last_iaq = 50.0
         self.last_voc_index = 75.0
         self.last_gas_resistance = None
 
-        logging.info(f"IAQCalculator initialized for '{self.name}' (baseline_mode={self.baseline_mode})")
+        logging.info(f"IAQCalculator initialized for '{self.name}' "
+                    f"(baseline_mode={self.baseline_mode})")
 
     def update(self, readings: Dict[str, float]) -> Dict[str, float]:
-        """Process sensor readings and return enriched data with IAQ values."""
+        """
+        Main entry point. Takes raw sensor readings and returns enriched data
+        including calculated IAQ and compensated values.
+        """
         if not readings:
             return {}
 
@@ -101,7 +103,7 @@ class IAQCalculator:
             return 50.0
 
         if self.baseline_mode == "adaptive":
-            self.baseline_gas = (self.baseline_gas * (1 - self.adaptation_rate) + 
+            self.baseline_gas = (self.baseline_gas * (1 - self.adaptation_rate) +
                                gas_resistance * self.adaptation_rate)
 
         ratio = self.baseline_gas / max(gas_resistance, 1000.0)
@@ -111,6 +113,7 @@ class IAQCalculator:
         return iaq
 
     def get_status(self) -> Dict[str, Any]:
+        """Return current status for QUERY_ENV and debugging."""
         return {
             "iaq": round(self.last_iaq, 1),
             "voc_index": round(self.last_voc_index, 1),
@@ -121,4 +124,5 @@ class IAQCalculator:
 
 
 def load_config_prefix(config):
+    """Allows [env_sensor chamber] to also load the IAQ calculator if needed."""
     return IAQCalculator(config)
