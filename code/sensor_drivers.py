@@ -23,7 +23,7 @@ from . import sgp40_driver
 
 
 def create_sensor(sensor_type: str, i2c_mcu: str, i2c_bus: str,
-                 i2c_address: Optional[int], config):
+                 i2c_address: Optional[int], config) -> "BaseSensor":
     """
     Factory function that returns the correct sensor driver instance.
     
@@ -91,6 +91,6 @@ class BaseSensor:
                 - 'humidity' (float, %)
                 - 'pressure' (float, hPa)
                 - 'gas_resistance' (float, Ohms)      [BME680 only]
-                - 'iaq' (float, 0-500)                [if calculated]
+                - 'voc_index' (float)                 [SGP40 only]
         """
         raise NotImplementedError("Sensor driver must implement read()")
