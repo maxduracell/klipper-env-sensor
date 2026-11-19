@@ -86,16 +86,28 @@ class EnvSensor:
         logging.info(f"EnvSensor '{self.name}' initialized (type: {self.sensor_type})")
 
     def _register_virtual_sensors(self, config):
-        """Create virtual sensors so they appear in Mainsail."""
-        self.printer.load_object(config, f"temperature_sensor {self.name}_temp")
-        self.printer.load_object(config, f"temperature_sensor {self.name}_humidity")
-        self.printer.load_object(config, f"temperature_sensor {self.name}_pressure")
+        """
+        Create virtual temperature sensors so they appear in Mainsail/Fluidd.
+        Note: This is a best-effort approach. Full temperature_sensor
+        integration is complex in Klipper.
+        """
+        try:
+            # These will appear as temperature sensors in the UI
+            self.printer.load_object(config, f"temperature_sensor {self.name}_temp")
+            self.printer.load_object(config, f"temperature_sensor {self.name}_humidity")
+            self.printer.load_object(config, f"temperature_sensor {self.name}_pressure")
 
-        if self.enable_iaq:
-            self.printer.load_object(config, f"temperature_sensor {self.name}_iaq")
+            if self.enable_iaq:
+                self.printer.load_object(config, f"temperature_sensor {self.name}_iaq")
+        except Exception as e:
+            logging.warning(f"Could not register virtual sensors: {e}")
 
     def _on_connect(self):
-        self.sensor.initialize()
+        try:
+            self.sensor.initialize()
+        except Exception as e:
+            logging.exception(f"Failed to initialize sensor '{self.name}'")
+            raise
 
     def _on_ready(self):
         reactor = self.printer.get_reactor()
@@ -125,22 +137,32 @@ class EnvSensor:
     def _update_virtual_sensors(self, readings: Dict[str, float]):
         """Update virtual sensors for Mainsail display."""
         try:
-            self.printer.lookup_object(f"temperature_sensor {self.name}_temp").sensor.update_temp(
-                readings.get("temperature", 0.0)
-            )
-            self.printer.lookup_object(f"temperature_sensor {self.name}_humidity").sensor.update_temp(
-                readings.get("humidity", 0.0)
-            )
-            self.printer.lookup_object(f"temperature_sensor {self.name}_pressure").sensor.update_temp(
-                readings.get("pressure", 0.0)
-            )
+            # Best-effort update of the virtual sensors
+            for key, sensor_suffix in [
+                ("temperature", "temp"),
+                ("humidity", "humidity"),
+                ("pressure", "pressure"),
+            ]:
+                if key in readings:
+                    obj_name = f"temperature_sensor {self.name}_{sensor_suffix}"
+                    try:
+                        sensor_obj = self.printer.lookup_object(obj_name)
+                        if hasattr(sensor_obj, "sensor") and hasattr(sensor_obj.sensor, "update_temp"):
+                            sensor_obj.sensor.update_temp(readings[key])
+                    except Exception:
+                        pass  # Silently ignore if the object isn't ready yet
 
             if self.enable_iaq and "iaq" in readings:
-                self.printer.lookup_object(f"temperature_sensor {self.name}_iaq").sensor.update_temp(
-                    readings.get("iaq", 0.0)
-                )
+                try:
+                    obj_name = f"temperature_sensor {self.name}_iaq"
+                    sensor_obj = self.printer.lookup_object(obj_name)
+                    if hasattr(sensor_obj, "sensor") and hasattr(sensor_obj.sensor, "update_temp"):
+                        sensor_obj.sensor.update_temp(readings["iaq"])
+                except Exception:
+                    pass
+
         except Exception as e:
-            logging.exception(f"Failed to update virtual sensors for {self.name}")
+            logging.debug(f"Failed to update virtual sensors for {self.name}: {e}")
 
     def cmd_QUERY_ENV(self, gcmd):
         """GCode command: QUERY_ENV SENSOR=chamber"""
