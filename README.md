@@ -1,5 +1,7 @@
 # klipper-env-sensor
 
+***WARNING*** This is untested. Use at your own risk.
+
 A Klipper extras module for environmental monitoring using BME680, BME280, SGP40, and similar sensors.
 
 This module provides clean temperature, humidity, pressure, and air quality (IAQ/VOC) readings that appear in Mainsail/Fluidd, while also exposing the values for use in macros and chamber automation.
