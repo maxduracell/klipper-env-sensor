@@ -10,15 +10,14 @@ This module provides clean temperature, humidity, pressure, and air quality (IAQ
 
 ---
 
-## Features
+# Features
 
 - Support for **BME680**, **BME280**, and **SGP40**
-- Virtual temperature sensors that appear cleanly in Mainsail/Fluidd
-- Open-source IAQ / VOC calculation with adaptive baseline (helps reduce sensor drift)
-- Values easily accessible from macros for chamber automation
+- Virtual sensors that appear cleanly in Mainsail and Fluidd
+- Open-source IAQ / VOC calculation with adaptive baseline tracking to reduce sensor drift
+- Easy-to-use values in macros for chamber automation
 - Works with both stock Klipper and Kalico
-- Can run on the main MCU (e.g. Octopus) or a dedicated RP2040/Pico
-- Moonraker update manager support
+- Supports sensors on the main MCU or a dedicated RP2040/Pico
 
 ---
 
@@ -65,7 +64,12 @@ sample_time: 3.0
 iaq_algorithm: open_source
 baseline_mode: adaptive
 ```
-See config_example.cfg for more examples (including RP2040 and BME280 + SGP40 combinations).
+Configuration Examples
+See config_example.cfg [blocked] for recommended configurations, including:
+
+BME680 on Octopus I2C
+BME680 on RP2040/Pico (recommended for flexible sensor placement)
+BME280 + SGP40 combination
 
 Available Values in Macros
 You can access the following values in macros:
