@@ -13,7 +13,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of klipper-env-sensor.
-# Copyright (C) 2026  [Your GitHub Username or Name]
+# Copyright (C) 2026  maxduracell
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
