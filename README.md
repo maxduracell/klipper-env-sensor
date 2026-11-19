@@ -47,8 +47,8 @@ ln -s ~/klipper-env-sensor/env_sensor.py ~/klipper/klippy/extras/env_sensor.py
 ```
 3. Restart Klipper:
 
-```bas
-hsudo systemctl restart klipper
+```bash
+sudo systemctl restart klipper
 ```
 4. Add the [env_sensor ...] section to your printer.cfg (see config_example.cfg for examples).
    
