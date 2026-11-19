@@ -90,7 +90,7 @@ class EnvSensor:
         self.printer.load_object(config, f"temperature_sensor {self.name}_temp")
         self.printer.load_object(config, f"temperature_sensor {self.name}_humidity")
         self.printer.load_object(config, f"temperature_sensor {self.name}_pressure")
-        
+
         if self.enable_iaq:
             self.printer.load_object(config, f"temperature_sensor {self.name}_iaq")
 
@@ -188,3 +188,7 @@ class EnvSensor:
             return self.iaq.get_status().get("baseline_gas")
         return None
 
+
+def load_config(config):
+    """Klipper entry point - required"""
+    return EnvSensor(config)
