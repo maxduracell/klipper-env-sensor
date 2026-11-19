@@ -67,7 +67,7 @@ baseline_mode: adaptive
 Configuration Examples  
 See config_example.cfg for recommended configurations, including:
 
-BME680 on Octopus I2C
+BME680 on Octopus I2C  
 BME680 on RP2040/Pico (recommended for flexible sensor placement)  
 BME280 + SGP40 combination
 
