@@ -88,11 +88,19 @@ You can access the following values in macros:
 Example macro:
 
 ```
-[gcode_macro CHAMBER_STATUS]
+[gcode_macro ENV_QUERY]
+description: Query any env_sensor (change "chamber" to match your sensor name)
 gcode:
-    {% set iaq = printer["env_sensor chamber"].iaq|float %}
-    {% set temp = printer["env_sensor chamber"].temperature|float %}
-    {% set hum = printer["env_sensor chamber"].humidity|float %}
+    QUERY_ENV SENSOR={params.SENSOR|default("chamber")}
+
+[gcode_macro CHAMBER_STATUS]
+description: Show current chamber environmental status (change "chamber" to match your sensor name)
+gcode:
+    {% set sensor_name = params.SENSOR|default("chamber") %}
+    {% set sensor = printer["env_sensor " ~ sensor_name] %}
+    {% set iaq = sensor.iaq|float %}
+    {% set temp = sensor.temperature|float %}
+    {% set hum = sensor.humidity|float %}
     RESPOND TYPE=command MSG="Chamber IAQ: {iaq:.1f} | Temp: {temp:.1f}°C | Humidity: {hum:.1f}%"
 ```
 
