@@ -95,51 +95,51 @@ class BME680Sensor(BaseSensor):
         return val - 65536 if val > 32767 else val
 
     def _load_calibration(self):
-        """Load factory calibration coefficients using correct Bosch register map."""
-        # Calibration data is split across two regions
-        coeff1 = self._read_bytes(0x89, 25)   # 0x89 - 0xA1
-        coeff2 = self._read_bytes(0xE1, 16)   # 0xE1 - 0xF0
+        """
+        Load factory calibration coefficients.
+        Mapping based on Bosch BME68x documentation and working open-source libraries.
+        """
+        # Temperature + Pressure + Humidity (part 1) - registers 0x89 to 0xA1
+        c1 = self._read_bytes(0x89, 25)
+
+        # Humidity (part 2) + Gas - registers 0xE1 to 0xF0
+        c2 = self._read_bytes(0xE1, 16)
 
         self.cal = {
             # Temperature
-            "par_t1": (coeff1[34 - 25] << 8) | coeff1[33 - 25] if False else (coeff1[1] << 8) | coeff1[0],
-            "par_t2": self._to_int16((coeff1[3] << 8) | coeff1[2]),
-            "par_t3": self._to_int8(coeff1[4]),
+            "par_t1": (c1[1] << 8) | c1[0],
+            "par_t2": self._to_int16((c1[3] << 8) | c1[2]),
+            "par_t3": self._to_int8(c1[4]),
 
             # Pressure
-            "par_p1": (coeff1[6] << 8) | coeff1[5],
-            "par_p2": self._to_int16((coeff1[8] << 8) | coeff1[7]),
-            "par_p3": self._to_int8(coeff1[9]),
-            "par_p4": self._to_int16((coeff1[12] << 8) | coeff1[11]),
-            "par_p5": self._to_int16((coeff1[14] << 8) | coeff1[13]),
-            "par_p6": self._to_int8(coeff1[16]),
-            "par_p7": self._to_int8(coeff1[15]),
-            "par_p8": self._to_int16((coeff1[20] << 8) | coeff1[19]),
-            "par_p9": self._to_int16((coeff1[22] << 8) | coeff1[21]),
-            "par_p10": coeff1[23],
+            "par_p1": (c1[6] << 8) | c1[5],
+            "par_p2": self._to_int16((c1[8] << 8) | c1[7]),
+            "par_p3": self._to_int8(c1[9]),
+            "par_p4": self._to_int16((c1[12] << 8) | c1[11]),
+            "par_p5": self._to_int16((c1[14] << 8) | c1[13]),
+            "par_p6": self._to_int8(c1[16]),
+            "par_p7": self._to_int8(c1[15]),
+            "par_p8": self._to_int16((c1[20] << 8) | c1[19]),
+            "par_p9": self._to_int16((c1[22] << 8) | c1[21]),
+            "par_p10": c1[23],
 
             # Humidity
-            "par_h1": (coeff2[2] << 4) | (coeff2[1] & 0x0F),
-            "par_h2": (coeff2[0] << 4) | (coeff2[1] >> 4),
-            "par_h3": self._to_int8(coeff2[3]),
-            "par_h4": self._to_int8(coeff2[4]),
-            "par_h5": self._to_int8(coeff2[5]),
-            "par_h6": coeff2[6],
-            "par_h7": self._to_int8(coeff2[7]),
+            "par_h1": (c2[2] << 4) | (c2[1] & 0x0F),
+            "par_h2": (c2[0] << 4) | (c2[1] >> 4),
+            "par_h3": self._to_int8(c2[3]),
+            "par_h4": self._to_int8(c2[4]),
+            "par_h5": self._to_int8(c2[5]),
+            "par_h6": c2[6],
+            "par_h7": self._to_int8(c2[7]),
 
             # Gas
-            "par_g1": self._to_int8(coeff2[12]),
-            "par_g2": self._to_int16((coeff2[11] << 8) | coeff2[10]),
-            "par_g3": self._to_int8(coeff2[13]),
+            "par_g1": self._to_int8(c2[12]),
+            "par_g2": self._to_int16((c2[11] << 8) | c2[10]),
+            "par_g3": self._to_int8(c2[13]),
             "res_heat_range": (self._read_byte(0x02) >> 4) & 0x03,
             "res_heat_val": self._to_int8(self._read_byte(0x00)),
             "range_sw_err": self._to_int8((self._read_byte(0x04) & 0xF0) >> 4),
         }
-
-        # Correct temperature coefficients (standard mapping used by most working libraries)
-        self.cal["par_t1"] = (coeff1[1] << 8) | coeff1[0]
-        self.cal["par_t2"] = self._to_int16((coeff1[3] << 8) | coeff1[2])
-        self.cal["par_t3"] = self._to_int8(coeff1[4])
 
         logging.info("BME680 calibration data loaded")
 
@@ -151,10 +151,10 @@ class BME680Sensor(BaseSensor):
         # Temperature x8 + Pressure x4 + Sleep mode
         self._write_byte(self.REG_CTRL_MEAS, 0x54)
 
-        # IIR filter
+        # IIR filter coefficient
         self._write_byte(self.REG_CONFIG, 0x0C)
 
-        # Gas heater (~320°C for 150ms)
+        # Gas heater settings (~320°C for 150 ms)
         self._write_byte(self.REG_GAS_WAIT_0, 0x59)
         self._write_byte(self.REG_RES_HEAT_0, 0x73)
         self._write_byte(self.REG_CTRL_GAS_1, 0x10)
@@ -166,7 +166,7 @@ class BME680Sensor(BaseSensor):
             return None
 
         try:
-            # Trigger forced mode
+            # Trigger forced mode measurement
             self._write_byte(self.REG_CTRL_MEAS, 0x55)
             self._pause(0.25)
 
@@ -239,7 +239,7 @@ class BME680Sensor(BaseSensor):
 
     def _compensate_gas(self, gas_adc: int, gas_range: int) -> float:
         lookup = [1, 1, 1, 1, 1, 0.99, 1, 0.992,
-                  1, 1, 0.998, 0.995, 1, 0.99, 1, 1]
+                  1, 1, 0.998, 0x995, 1, 0.99, 1, 1]
 
         var1 = 1340.0 + (5.0 * self.cal["range_sw_err"])
         var2 = var1 * lookup[gas_range]
