@@ -2,11 +2,11 @@
 #
 # IAQ (Indoor Air Quality) and VOC calculation logic for klipper-env-sensor.
 #
-# This module takes raw readings from BME680, BME280, and/or SGP40 sensors
-# and computes a meaningful air quality index.
+# This module takes raw readings from BME680 / BME280 / SGP40 sensors
+# and calculates a useful Indoor Air Quality (IAQ) index and VOC value.
 #
-# We deliberately avoid the closed-source Bosch BSEC library and instead
-# implement an open-source, understandable, and maintainable solution.
+# We intentionally avoid the closed-source Bosch BSEC library and instead
+# use an open, understandable, and maintainable algorithm with drift compensation.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
@@ -17,11 +17,6 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
 
 import logging
 import time
@@ -30,40 +25,41 @@ from typing import Dict, Any, Optional
 
 class IAQCalculator:
     """
-    Calculates Indoor Air Quality (IAQ) and VOC index.
+    Calculates Indoor Air Quality (IAQ) and VOC index from environmental sensors.
     
     Features:
-      - Temperature and humidity compensated gas resistance
-      - Adaptive baseline tracking to fight sensor drift
-      - Multiple operating modes (adaptive, locked, manual)
-      - Clean interface for both real-time updates and macro access
+      - Temperature and humidity compensation
+      - Adaptive baseline tracking to fight long-term sensor drift
+      - Support for both BME680 gas resistance and SGP40 VOC index
+      - Clean interface for macros and virtual sensors
     """
 
     def __init__(self, config):
         self.printer = config.get_printer()
         self.name = config.get_name().split()[-1]
 
-        # Configuration
+        # Configuration options
         self.algorithm = config.get("iaq_algorithm", "open_source").lower()
-        self.baseline_mode = config.get("baseline_mode", "adaptive")   # adaptive, locked, manual
+        self.baseline_mode = config.get("baseline_mode", "adaptive")  # adaptive | locked | manual
 
-        # Adaptive baseline parameters
+        # Adaptive baseline state
         self.baseline_gas = None
         self.baseline_humidity = 45.0
-        self.adaptation_rate = 0.00005          # Very slow adaptation to avoid drift
+        self.adaptation_rate = 0.00005          # Very slow adaptation (helps fight drift)
 
-        # Last calculated values
+        # Last calculated values (for macros and status)
         self.last_iaq = 50.0
         self.last_voc_index = 75.0
+        self.last_gas_resistance = None
         self.last_update_time = time.time()
 
-        logging.info(f"IAQCalculator initialized for sensor '{self.name}' "
+        logging.info(f"IAQCalculator initialized for '{self.name}' "
                     f"(algorithm={self.algorithm}, baseline_mode={self.baseline_mode})")
 
     def update(self, readings: Dict[str, float]) -> Dict[str, float]:
         """
         Main entry point. Takes raw sensor readings and returns enriched data
-        including IAQ and compensated values.
+        including calculated IAQ and compensated values.
         """
         if not readings:
             return {}
@@ -85,43 +81,48 @@ class IAQCalculator:
             result["iaq"] = round(iaq_value, 1)
             result["gas_resistance"] = int(gas)
             self.last_iaq = iaq_value
+            self.last_gas_resistance = gas
 
-        # Use SGP40 VOC index directly if available
+        # Use SGP40 VOC index if available
         if voc is not None:
             result["voc_index"] = round(voc, 1)
             self.last_voc_index = voc
 
+        self.last_update_time = time.time()
         return result
 
     def _calculate_from_gas(self, gas_resistance: float, temp: float, hum: float) -> float:
         """
-        Calculate IAQ based on gas resistance with temperature and humidity compensation.
+        Calculate IAQ based on gas resistance with temperature/humidity compensation.
         Higher gas resistance = cleaner air.
         """
         if self.baseline_gas is None:
             self.baseline_gas = gas_resistance
             self.baseline_humidity = hum
-            return 50.0
+            return 50.0  # Neutral starting point
 
-        # Slow adaptive baseline to reduce long-term drift
+        # Slowly adapt the baseline to reduce long-term sensor drift
         if self.baseline_mode == "adaptive":
             self.baseline_gas = (self.baseline_gas * (1 - self.adaptation_rate) +
                                gas_resistance * self.adaptation_rate)
 
-        # Simple but effective ratio-based IAQ calculation
-        ratio = self.baseline_gas / max(gas_resistance, 1000)   # avoid division by zero
+        # Ratio-based IAQ calculation (simple but effective)
+        ratio = self.baseline_gas / max(gas_resistance, 1000)
         iaq = 50.0 + (ratio - 1.0) * 180.0
 
-        # Clamp to reasonable range
+        # Clamp to reasonable range (0-500)
         iaq = max(0.0, min(500.0, iaq))
 
         return iaq
 
     def get_status(self) -> Dict[str, Any]:
-        """Return current status for QUERY_ENV and debugging."""
+        """
+        Return current status for QUERY_ENV and for use in macros.
+        """
         return {
             "iaq": round(self.last_iaq, 1),
             "voc_index": round(self.last_voc_index, 1),
+            "gas_resistance": self.last_gas_resistance,
             "baseline_gas": round(self.baseline_gas, 0) if self.baseline_gas else None,
             "baseline_mode": self.baseline_mode,
             "algorithm": self.algorithm
