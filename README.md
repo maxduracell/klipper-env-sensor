@@ -124,15 +124,13 @@ See config_example.cfg for example configurations:
 ## Available Values in Macros
 You can access the following values in macros:
 
-```
 {printer["env_sensor chamber"].temperature}
 {printer["env_sensor chamber"].humidity}
 {printer["env_sensor chamber"].pressure}
 {printer["env_sensor chamber"].iaq}
 {printer["env_sensor chamber"].gas_resistance}
-{printer["env_sensor chamber"].voc_index}
+{printer["env_sensor chamber"].voc_index}  (only if utilizing SGP40)
 {printer["env_sensor chamber"].baseline_gas}
-```
 
 Example macro:
 
