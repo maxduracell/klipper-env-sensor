@@ -46,8 +46,8 @@ If your Klipper directory is in a non-standard location or you manage multiple p
 
 ```bash
 ./install.sh /path/to/your/klipper
-```
-# Example for a specific user:
+```  
+Example for a specific user:
 ./install.sh /home/biqu/klipper
 
 ## Option 2: Manual Installation
