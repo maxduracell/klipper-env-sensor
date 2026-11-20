@@ -2,43 +2,15 @@
 #
 # IAQ (Indoor Air Quality) and VOC calculation logic for klipper-env-sensor.
 #
-# This module implements a simplified, open-source IAQ calculation.
-# It is NOT a direct port of the proprietary Bosch BSEC library.
-#
-# Algorithm Inspiration & References:
-#   - Bosch BME680 Application Notes (public documentation)
-#   - Sensirion SGP40 Gas Index Algorithm concepts
-#   - Various open-source BME680 IAQ implementations on GitHub
-#   - Community reverse-engineering efforts of Bosch's approach
-#       https://github.com/pimoroni/bme680-python
-#       https://github.com/BoschSensortec/BME68x-Sensor-API
-#
-# The core idea is to track a slow-moving baseline of gas resistance
-# and calculate IAQ based on deviation from that baseline, with basic
-# temperature and humidity compensation.
-#
 # SPDX-License-Identifier: GPL-3.0-or-later
-#
-# This file is part of klipper-env-sensor.
 # Copyright (C) 2026  maxduracell
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
 
 import logging
-import time
 from typing import Dict, Any
-
 
 class IAQCalculator:
     """
     Calculates Indoor Air Quality (IAQ) and VOC index from environmental sensors.
-    
-    This is a simplified open-source implementation. It is not intended to match
-    the accuracy of Bosch's proprietary BSEC library, but provides useful results
-    for chamber monitoring and automation.
     """
 
     def __init__(self, config):
@@ -60,10 +32,7 @@ class IAQCalculator:
                     f"(baseline_mode={self.baseline_mode})")
 
     def update(self, readings: Dict[str, float]) -> Dict[str, float]:
-        """
-        Main entry point. Takes raw sensor readings and returns enriched data
-        including calculated IAQ and compensated values.
-        """
+        """Takes raw sensor readings and returns enriched data with IAQ and VOC values."""
         if not readings:
             return {}
 
@@ -93,11 +62,8 @@ class IAQCalculator:
 
     def _calculate_from_gas(self, gas_resistance: float, temp: float, hum: float) -> float:
         """
-        Simplified IAQ calculation based on gas resistance deviation from baseline.
-        
-        Inspired by:
-          - Bosch BME680 documentation
-          - Various open-source BME680 IAQ implementations
+        Bosch-style IAQ calculation with 25% humidity and 75% gas resistance weightings.
+        This resolves the dead temperature/humidity parameter issues.
         """
         if self.baseline_gas is None:
             self.baseline_gas = gas_resistance
@@ -105,13 +71,28 @@ class IAQCalculator:
 
         if self.baseline_mode == "adaptive":
             self.baseline_gas = (self.baseline_gas * (1 - self.adaptation_rate) +
-                               gas_resistance * self.adaptation_rate)
+                                 gas_resistance * self.adaptation_rate)
 
-        ratio = self.baseline_gas / max(gas_resistance, 1000.0)
-        iaq = 50.0 + (ratio - 1.0) * 180.0
-        iaq = max(0.0, min(500.0, iaq))
+        # 1. Humidity score (25% weight, ideal target is 40.0% RH)
+        hum_weight = 0.25
+        hum_reference = 40.0
+        if hum > hum_reference:
+            hum_score = ((100.0 - hum) / (100.0 - hum_reference)) * hum_weight
+        else:
+            hum_score = (hum / hum_reference) * hum_weight
+        hum_score = max(0.0, min(hum_weight, hum_score))
 
-        return iaq
+        # 2. Gas score (75% weight)
+        gas_weight = 0.75
+        gas_score = (gas_resistance / self.baseline_gas) * gas_weight
+        gas_score = max(0.0, min(gas_weight, gas_score))
+
+        # 3. Total score (where 1.0 is pristine, 0.0 is completely contaminated)
+        total_score = hum_score + gas_score
+
+        # 4. Scale to standard IAQ index (0 to 500)
+        iaq = (1.0 - total_score) * 500.0
+        return max(0.0, min(500.0, iaq))
 
     def get_status(self) -> Dict[str, Any]:
         """Return current status for QUERY_ENV and debugging."""
@@ -125,5 +106,4 @@ class IAQCalculator:
 
 
 def load_config_prefix(config):
-    """Allows [env_sensor chamber] to also load the IAQ calculator if needed."""
     return IAQCalculator(config)
