@@ -77,12 +77,17 @@ Add a section like this to your printer.cfg:
 [env_sensor chamber]
 sensor_type: bme680
 i2c_mcu: mcu
-i2c_bus: i2c1a
-i2c_address: 118
+i2c_bus: i2c1a                    # Octopus v1.1 common I2C bus (PB8=SDA, PB9=SCL)
+i2c_address: 118                  # Most BME680 modules are 0x76 = 118. Some are 0x77 = 119.
 sample_time: 3.0
+enable_iaq: True                  # Set to False to disable IAQ calculations
 iaq_algorithm: open_source
-baseline_mode: adaptive
+baseline_mode: adaptive           # "adaptive" = slowly corrects sensor drift (recommended, "locked" = uses fixed baseline for more stability
+baseline_file: ~/printer_data/config/.env_sensor_baselines.json
+warmup_duration: 20        # in minutes - time to build a reliable initial baseline
+save_interval: 30          # in minutes - how often to persist the baseline
 ```
+
 Configuration Examples  
 See config_example.cfg for recommended configurations, including:
 
