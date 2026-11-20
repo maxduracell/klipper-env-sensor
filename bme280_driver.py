@@ -14,7 +14,6 @@ class BME280Sensor(BaseSensor):
     """
     Full functional driver for the Bosch BME280.
     """
-
     REG_CHIP_ID   = 0xD0
     REG_RESET     = 0xE0
     REG_CTRL_HUM  = 0xF2
@@ -29,7 +28,6 @@ class BME280Sensor(BaseSensor):
         self.reactor = self.printer.get_reactor()
         
         # Standard Klipper core I2C configuration helper
-        # Automatically handles MCU lookup, dynamic pins, and custom bus layouts.
         import bus
         self.i2c = bus.setup_sensorsbus(config, "i2c", default_addr=i2c_address or 0x76)
 
@@ -56,7 +54,6 @@ class BME280Sensor(BaseSensor):
 
             self._is_initialized = True
             logging.info("BME280 initialization successful")
-
         except Exception as e:
             logging.exception("BME280 init failed")
             raise self.printer.config_error(f"Unable to initialize BME280: {e}")
@@ -75,10 +72,8 @@ class BME280Sensor(BaseSensor):
 
     def _load_calibration(self):
         """Load factory calibration data."""
-        # Temperature and pressure calibration (0x88 - 0xA1)
-        coeff = self._read_bytes(0x88, 26)
-        # Humidity calibration (0xA1 + 0xE1 - 0xE7)
-        coeff_h = self._read_bytes(0xE1, 7)
+        coeff = self._read_bytes(0x88, 26)   # Temperature and pressure (0x88 - 0xA1)
+        coeff_h = self._read_bytes(0xE1, 7)  # Humidity calibration (0xE1 - 0xE7)
 
         self.cal = {
             "dig_T1": (coeff[1] << 8) | coeff[0],
@@ -103,8 +98,6 @@ class BME280Sensor(BaseSensor):
             "dig_H6": self._to_int8(coeff_h[6]),
         }
 
-        logging.info("BME280 calibration data loaded")
-
     def _to_int8(self, val: int) -> int:
         return val - 256 if val > 127 else val
 
@@ -113,22 +106,16 @@ class BME280Sensor(BaseSensor):
 
     def _configure(self):
         """Configure oversampling and filter."""
-        # Humidity oversampling x4
-        self._write_byte(self.REG_CTRL_HUM, 0x03)
-        # Temperature x4 + Pressure x4 + Normal mode
-        self._write_byte(self.REG_CTRL_MEAS, 0x6F)
-        # Filter coefficient 4
-        self._write_byte(self.REG_CONFIG, 0x10)
-
+        self._write_byte(self.REG_CTRL_HUM, 0x03)   # Humidity oversampling x4
+        self._write_byte(self.REG_CTRL_MEAS, 0x6F)  # Temp x4 + Press x4 + Normal mode
+        self._write_byte(self.REG_CONFIG, 0x10)     # Filter coefficient 4
         logging.info("BME280 configured")
 
     def read(self) -> Optional[Dict[str, float]]:
         if not self._is_initialized:
             return None
-
         try:
             data = self._read_bytes(0xF7, 8)
-
             press_adc = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4)
             temp_adc  = (data[3] << 12) | (data[4] << 4) | (data[5] >> 4)
             hum_adc   = (data[6] << 8) | data[7]
@@ -142,7 +129,6 @@ class BME280Sensor(BaseSensor):
                 "humidity": round(humidity, 2),
                 "pressure": round(pressure, 2),
             }
-
         except Exception as e:
             logging.exception("BME280 read failed")
             return None
