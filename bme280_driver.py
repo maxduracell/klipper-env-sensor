@@ -3,18 +3,12 @@
 # Functional driver for the Bosch BME280 sensor.
 # Provides compensated temperature, humidity and pressure.
 #
-# Based on the official Bosch BME280 compensation formulas.
-#
 # SPDX-License-Identifier: GPL-3.0-or-later
-#
-# This file is part of klipper-env-sensor.
 # Copyright (C) 2026  maxduracell
 
 import logging
 from typing import Dict, Optional
-
 from .sensor_drivers import BaseSensor
-
 
 class BME280Sensor(BaseSensor):
     """
@@ -32,22 +26,21 @@ class BME280Sensor(BaseSensor):
 
     def __init__(self, i2c_mcu: str, i2c_bus: str, i2c_address: Optional[int], config):
         self.printer = config.get_printer()
-        self.i2c_mcu_name = i2c_mcu
-        self.i2c_bus = i2c_bus
-        self.i2c_addr = i2c_address if i2c_address is not None else 0x76
+        self.reactor = self.printer.get_reactor()
+        
+        # Standard Klipper core I2C configuration helper
+        # Automatically handles MCU lookup, dynamic pins, and custom bus layouts.
+        import bus
+        self.i2c = bus.setup_sensorsbus(config, "i2c", default_addr=i2c_address or 0x76)
 
-        self.i2c = None
         self.cal = {}
         self.t_fine = 0.0
         self._is_initialized = False
 
-        logging.info(f"BME280Sensor created on {i2c_mcu}:{i2c_bus} @ 0x{self.i2c_addr:02X}")
+        logging.info("BME280Sensor registered successfully")
 
     def initialize(self) -> None:
         try:
-            i2c_obj = self.printer.lookup_object(f"i2c_{self.i2c_mcu_name}")
-            self.i2c = i2c_obj.get_i2c(self.i2c_bus, self.i2c_addr)
-
             # Soft reset
             self._write_byte(self.REG_RESET, 0xB6)
             self._pause(0.01)
@@ -78,8 +71,7 @@ class BME280Sensor(BaseSensor):
         return bytes(self.i2c.read(reg, length))
 
     def _pause(self, seconds: float):
-        reactor = self.printer.get_reactor()
-        reactor.pause(reactor.monotonic() + seconds)
+        self.reactor.pause(self.reactor.monotonic() + seconds)
 
     def _load_calibration(self):
         """Load factory calibration data."""
