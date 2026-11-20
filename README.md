@@ -29,25 +29,46 @@ This module provides clean temperature, humidity, pressure, and air quality (IAQ
 
 ---
 
-## Installation
+# 💾 Installation
 
-1. Clone the repository:
+## Option 1: Automated Install (Recommended)
+
+Log in to your Raspberry Pi / Klipper host via SSH and run:
 
 ```bash
 cd ~
 git clone https://github.com/maxduracell/klipper-env-sensor.git
+cd klipper-env-sensor
+./install.sh
 ```
-2. Create a symbolic link into your Klipper extras directory:
+Custom or Multi-Instance Klipper Paths
+If your Klipper directory is in a non-standard location or you manage multiple printer instances, provide the path to your Klipper installation:
 
 ```bash
-ln -s ~/klipper-env-sensor ~/klipper/klippy/extras/env_sensor
+./install.sh /path/to/your/klipper
 ```
-3. Restart Klipper:
+# Example for a specific user:
+./install.sh /home/biqu/klipper
 
-```bash
+## Option 2: Manual Installation
+If you prefer not to use the automated script:
+
+### 1. Clone the repository
+
+```
+cd ~
+git clone https://github.com/maxduracell/klipper-env-sensor.git
+```
+
+### 2. Symlink the package directory to Klipper extras
+```
+ln -sfn ~/klipper-env-sensor/env_sensor ~/klipper/klippy/extras/env_sensor
+```
+
+### 3. Restart Klipper
+```
 sudo systemctl restart klipper
 ```
-4. Add the [env_sensor ...] section to your printer.cfg (see config_example.cfg for examples).
    
 ## Configuration
 Add a section like this to your printer.cfg:
