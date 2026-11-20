@@ -88,13 +88,38 @@ warmup_duration: 20        # in minutes - time to build a reliable initial basel
 save_interval: 30          # in minutes - how often to persist the baseline
 ```
 
-Configuration Examples  
-See config_example.cfg for recommended configurations, including:
+Then add these macros and run your initial baseline.
 
-BME680 on Octopus I2C  
-BME680 on RP2040/Pico (recommended for flexible sensor placement)  
-BME280 + SGP40 combination
+```
+[gcode_macro BUILD_IAQ_BASELINE]
+description: Run sensor for the configured warm-up period to create a solid initial IAQ baseline
+gcode:
+    {% set sensor_name = params.SENSOR|default("chamber") %}
+    {% set config_sec = 'env_sensor ' ~ sensor_name %}
+    {% set warmup_min = printer.configfile.settings[config_sec].warmup_duration|default(20)|int %}
+    {% set warmup_sec = warmup_min * 60 %}
+    {% set warmup_complete = printer[config_sec].warmup_complete|default(false) %}
 
+    RESPOND TYPE=echo MSG="=== Starting IAQ Baseline Build for {sensor_name} ==="
+    RESPOND TYPE=echo MSG="Warm-up duration: {warmup_min} minutes ({warmup_sec} seconds)"
+
+    {% if warmup_complete %}
+        RESPOND TYPE=echo MSG="Note: Warm-up already completed (baseline restored from persistent file)."
+    {% else %}
+        RESPOND TYPE=echo MSG="Running warm-up now. Do not turn off the printer."
+    {% endif %}
+
+    # Schedule completion notification after the calculated seconds elapse
+    UPDATE_DELAYED_GCODE DELAYED_GCODE=iaq_baseline_done DURATION={warmup_sec}
+
+[delayed_gcode iaq_baseline_done]
+gcode:
+    RESPOND TYPE=echo MSG="=== IAQ Baseline Build Complete ==="
+    RESPOND TYPE=echo MSG="Persistent baseline has been saved. Future restarts will skip the warm-up phase."
+```
+
+## Configuration Examples  
+See config_example.cfg for example configurations:
   
 ## Available Values in Macros
 You can access the following values in macros:
