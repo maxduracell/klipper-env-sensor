@@ -3,19 +3,12 @@
 # Functional driver for the Sensirion SGP40 VOC sensor.
 # Provides raw gas signal and a simplified VOC index.
 #
-# Note: For best accuracy the SGP40 should receive temperature and
-# humidity compensation from a BME280/BME680.
-#
 # SPDX-License-Identifier: GPL-3.0-or-later
-#
-# This file is part of klipper-env-sensor.
 # Copyright (C) 2026  maxduracell
 
 import logging
 from typing import Dict, Optional
-
 from .sensor_drivers import BaseSensor
-
 
 class SGP40Sensor(BaseSensor):
     """
@@ -31,30 +24,29 @@ class SGP40Sensor(BaseSensor):
 
     def __init__(self, i2c_mcu: str, i2c_bus: str, i2c_address: Optional[int], config):
         self.printer = config.get_printer()
-        self.i2c_mcu_name = i2c_mcu
-        self.i2c_bus = i2c_bus
-        self.i2c_addr = i2c_address if i2c_address is not None else self.DEFAULT_I2C_ADDRESS
+        self.reactor = self.printer.get_reactor()
+        
+        # Standard Klipper core I2C configuration helper
+        # Automatically handles MCU lookup, dynamic pins, and custom bus layouts.
+        import bus
+        self.i2c = bus.setup_sensorsbus(config, "i2c", default_addr=i2c_address or self.DEFAULT_I2C_ADDRESS)
 
-        self.i2c = None
         self._is_initialized = False
 
         # Simple baseline for VOC index calculation
         self.baseline = None
         self.adaptation_rate = 0.0001
 
-        logging.info(f"SGP40Sensor created on {i2c_mcu}:{i2c_bus} @ 0x{self.i2c_addr:02X}")
+        logging.info("SGP40Sensor registered successfully")
 
     def initialize(self) -> None:
         try:
-            i2c_obj = self.printer.lookup_object(f"i2c_{self.i2c_mcu_name}")
-            self.i2c = i2c_obj.get_i2c(self.i2c_bus, self.i2c_addr)
-
             # Test communication by requesting serial number
             self.i2c.write(self.CMD_GET_SERIAL)
             self._pause(0.01)
             data = self.i2c.read(0x00, 9)  # 3 words + CRCs
 
-            logging.info(f"SGP40 detected on address 0x{self.i2c_addr:02X}")
+            logging.info(f"SGP40 detected on bus")
 
             self._is_initialized = True
             logging.info("SGP40 initialization successful")
@@ -64,8 +56,7 @@ class SGP40Sensor(BaseSensor):
             raise self.printer.config_error(f"Unable to initialize SGP40: {e}")
 
     def _pause(self, seconds: float):
-        reactor = self.printer.get_reactor()
-        reactor.pause(reactor.monotonic() + seconds)
+        self.reactor.pause(self.reactor.monotonic() + seconds)
 
     def read(self) -> Optional[Dict[str, float]]:
         """
@@ -75,11 +66,6 @@ class SGP40Sensor(BaseSensor):
             return None
 
         try:
-            # Send measure command (with default humidity/temp compensation)
-            # Default values: 50% RH, 25°C
-            # Command format: 0x260F + humidity ticks + temp ticks + CRCs
-            # For simplicity we use the basic raw measurement
-
             self.i2c.write(self.CMD_MEASURE_RAW)
             self._pause(0.03)  # Measurement takes ~30ms
 
