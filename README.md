@@ -6,6 +6,15 @@ A Klipper extras module for environmental monitoring using BME680, BME280, SGP40
 
 This module provides clean temperature, humidity, pressure, and air quality (IAQ/VOC) readings that appear in Mainsail/Fluidd, while also exposing the values for use in macros and chamber automation.
 
+| IAQ Index Range | Air Quality     | Classification                                              |
+|-----------------|-----------------|-------------------------------------------------------------|
+| 0 – 50          | Good / Pristine | Clean, fresh air.                                           |
+| 51 – 100        | Average         | Standard indoor air.                                        |
+| 101 – 150       | Little Unhealthy| Mild stuffiness or light VOC presence.                      |
+| 151 – 200       | Unhealthy       | Noticeable presence of volatile compounds or high moisture. |
+| 201 – 300       | Very Unhealthy  | Heavily degraded air quality.                               |
+| 301 – 500       | Hazardous       | Worst-case contamination.                                   |
+
 ---
 
 # Features
